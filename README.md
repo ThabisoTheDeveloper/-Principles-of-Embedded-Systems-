@@ -12,7 +12,7 @@ Prerequisites: Introduction to Computer Science, Digital Logic / Basic Computer 
 
 This course provides a comprehensive, concept-driven introduction to the architecture, design, and software stack of application-specific computing systems. Students will explore the fundamental divergence between general-purpose computing and constrained embedded environments. The curriculum systematically traces how execution happens across the entire system stack—beginning with foundational silicon hardware blocks, moving through memory mappings and multi-layered software/firmware stacks, and concluding with toolchain mechanics that translate high-level language into machine code. While entirely theoretical, this course equips students with the structural mental models necessary to analyze, design, and reason about embedded hardware-software co-design before transitioning to practical, hands-on physical deployment.
 
---
+---
 
 🎯 Course Learning Objectives (CLOs)
 
