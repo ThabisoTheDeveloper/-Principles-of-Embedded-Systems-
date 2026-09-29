@@ -1,0 +1,5 @@
+### Module 2: Embedded Hardware Architectures
+
+- Structural differences: Microprocessors (MPUs) vs. Microcontrollers (MCUs).
+- Von Neumann vs. Harvard architectures, CISC vs. RISC.
+- Memory organization, registers, and the mechanics of memory mapping.
