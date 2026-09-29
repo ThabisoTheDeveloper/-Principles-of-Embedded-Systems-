@@ -1,0 +1,4 @@
+### Module 3: The Embedded Software Stack
+
+- Defining the layers: Hardware, Drivers, Middleware, Firmware, and Software.
+- The role of the Hardware Abstraction Layer (HAL).
