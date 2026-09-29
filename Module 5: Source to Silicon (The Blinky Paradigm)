@@ -1,0 +1,5 @@
+### Module 5: Source to Silicon (The Blinky Paradigm)
+
+- Conceptual execution of an embedded application.
+- Comparing representation: C code vs. Assembly vs. raw Hex/Machine code.
+- How the MCU processes instructions at the gate level during a basic toggle event.
