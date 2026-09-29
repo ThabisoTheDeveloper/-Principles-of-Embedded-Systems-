@@ -1,0 +1,4 @@
+### Module 4: The Build Pipeline & Toolchains
+
+- Anatomy of a toolchain: Cross-compilers, assemblers, linkers, and locators.
+- Understanding how source code transforms into executable binaries.
