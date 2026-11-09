@@ -1,20 +1,36 @@
-## 📝 Formal Course Description Course
+# Principles of Embedded Systems
 
+> 🚧 **Work in Progress**
 
-**Title**: *Principles of Embedded Systems*
+## Course Description
 
-**Course Level**: Undergraduate (Second or Third Year), Hobbyists, Aspiring/Junior Embedded Systems Engineer
+This course gives a concept-first introduction to the architecture, design and software stack of application-specific computing systems. You will explore the divergence between general-purpose computing and constrained embedded environments, then trace how execution happens across the whole system stack: silicon hardware blocks, memory maps, layered software and firmware, and the toolchain that turns high-level code into machine code.
 
-**Prerequisites**: Introduction to Computer Science, Digital Logic / Basic Computer Architecture (Recommended)
+The course is concept-driven, with short guided labs on real hardware (NUCLEO-F411RE). It builds the structural mental models you need to analyze, design and reason about embedded hardware-software co-design before moving on to full hands-on deployment.
 
-This course provides a comprehensive, concept-driven introduction to the architecture, design, and software stack of application-specific computing systems. Students will explore the fundamental divergence between general-purpose computing and constrained embedded environments. The curriculum systematically traces how execution happens across the entire system stack—beginning with foundational silicon hardware blocks, moving through memory mappings and multi-layered software/firmware stacks, and concluding with toolchain mechanics that translate high-level language into machine code. While entirely theoretical, this course equips students with the structural mental models necessary to analyze, design, and reason about embedded hardware-software co-design before transitioning to practical, hands-on physical deployment.
+| | |
+|---|---|
+| **Intended audience** | Second/third-year undergraduates, hobbyists, aspiring and junior embedded systems engineers |
+| **Prerequisites** | Introduction to Computer Science; Digital Logic / Basic Computer Architecture (recommended); basic C programming (recommended) |
+| **Hardware** | NUCLEO-F411RE (optional for early modules) |
 
-<br>
+## Course Structure
 
----
+| Module | Title | Focus |
+|---|---|---|
+| 1 | Paradigms of Computing | General-purpose vs. application-specific; the constraint model |
+| 2 | Embedded Hardware Architectures | MPU vs. MCU, Von Neumann vs. Harvard, CISC vs. RISC, memory mapping |
+| 3 | The Embedded Software Stack | Layers, boundaries and the Hardware Abstraction Layer |
+| 4 | The Build Pipeline & Toolchains | Cross-compiler, assembler, linker, locator |
+| 5 | Source to Silicon (The Blinky Paradigm) | C, assembly and hex; what the MCU does during a toggle |
 
-<br>
+## Course Learning Objectives
 
-## 🎯  Course Learning Objectives (CLOs)
+By the end of this course you will be able to:
 
-By the end of this course, students will be able to:Differentiate between general-purpose computing systems and embedded/specific-purpose systems based on design constraints (power, cost, performance, and deterministic execution). Compare and contrast the structural, economic, and operational differences between microprocessors (MPUs) and microcontrollers (MCUs), as well as foundational architectures (Harvard vs. Von Neumann). Map and analyze how a microcontroller organizes its memory spaces (Flash, RAM, Peripherals) using memory-mapping techniques and register boundaries. Deconstruct the embedded software stack by clearly identifying the roles, boundaries, and communication paths between hardware, device drivers, middleware, firmware, and application software. Trace the compilation pipeline, explaining how a cross-compiler, assembler, linker, and locator transform high-level C code into executable machine binaries.Deconstruct execution flow by mapping a conceptual application (e.g., a "Blinky" routine) from human-readable languages down to assembly syntax and machine hex code.
+1. **Differentiate** general-purpose and embedded systems using design constraints: power, size, cost, reliability and deterministic execution.
+2. **Compare** microprocessors (MPUs) and microcontrollers (MCUs) structurally, economically and operationally, and compare Harvard and Von Neumann architectures.
+3. **Map** how a microcontroller organizes its memory spaces (flash, RAM, peripherals) using memory mapping and register boundaries.
+4. **Deconstruct** the embedded software stack by identifying the roles, boundaries and communication paths of hardware, drivers, middleware, firmware and application software.
+5. **Trace** the compilation pipeline, explaining how the cross-compiler, assembler, linker and locator turn C code into an executable binary.
+6. **Translate** a conceptual application (a "Blinky" routine) between C, assembly syntax and machine hex code, and explain its execution flow.
