@@ -1,4 +1,175 @@
-### Module 3: The Embedded Software Stack
+# Module 3: The Embedded Software Stack
 
-- Defining the layers: Hardware, Drivers, Middleware, Firmware, and Software.
-- The role of the Hardware Abstraction Layer (HAL).
+**Level:** Intermediate · **Time:** ~60 min
+
+**Prerequisites:** Modules 1–2, basic C (structs, function pointers, header files).
+
+## Learning Objectives
+
+By the end of this module you will be able to:
+
+1. Define the layers of an embedded software stack and the role of each.
+2. Explain the rules for communication between layers.
+3. Describe what a Hardware Abstraction Layer (HAL) does, and weigh its benefits against its costs.
+
+---
+
+## 1. Why Layers?
+
+A product that toggles a pin can be one file. A product with a sensor, a radio, a filesystem and an update mechanism cannot. Layering gives you:
+
+- **Separation of concerns**: register details stay out of product logic.
+- **Portability**: change the MCU without rewriting the application.
+- **Testability**: upper layers can be tested on a PC against fake lower layers.
+- **Parallel work**: different people own different layers.
+
+## 2. The Layers
+
+```
+┌─────────────────────────────────────────┐
+│  Application software (product logic)   │
+├─────────────────────────────────────────┤
+│  Middleware (RTOS, filesystem, stacks)  │
+├─────────────────────────────────────────┤
+│  Drivers (HAL + device/board drivers)   │
+├─────────────────────────────────────────┤
+│  Hardware (MCU, peripherals, board)     │
+└─────────────────────────────────────────┘
+        Firmware = the integrated image in
+        non-volatile memory (all of the above
+        software layers, plus startup code)
+```
+
+| Layer | What it is | Examples |
+|---|---|---|
+| **Hardware** | Silicon and board: CPU core, memory, peripheral blocks, external chips | STM32F411, NUCLEO board, an I2C sensor |
+| **Drivers** | Code that controls hardware directly. *Peripheral drivers* control on-chip blocks (GPIO, UART). *Device drivers* control external chips. A *BSP* describes a specific board | HAL_UART, a temperature-sensor driver, LED/button mapping |
+| **Middleware** | Reusable services that sit between drivers and the application. Hardware-independent where possible | FreeRTOS, FatFS, lwIP (TCP/IP), USB stack, MQTT client |
+| **Firmware** | The complete program stored in non-volatile memory: startup code, drivers, middleware and application, linked into one image | The `.elf`/`.bin` flashed to the chip |
+| **Application software** | Product-specific logic: *what the device is for* | Control loop, protocol handling, state machines |
+
+### The word "firmware"
+
+It is used in two ways, so be explicit:
+
+- **Broad:** everything stored in the MCU's non-volatile memory (this course's definition).
+- **Narrow:** low-level code tied closely to hardware (bootloader, drivers, BSP), as opposed to the application on top.
+
+When someone says "firmware engineer", check which one they mean.
+
+## 3. Rules Between Layers
+
+1. **Dependencies point downward.** The application calls middleware and drivers. Drivers should not call the application.
+2. **Talk to the layer directly below.** Skipping layers (an application writing a register) creates hidden coupling.
+3. **Interfaces are contracts.** Lower layers expose a header; callers depend on it, not on how it is implemented.
+4. **Upward communication uses callbacks or events**, such as an ISR posting to a queue, not direct calls into the application.
+
+## 4. The Hardware Abstraction Layer (HAL)
+
+### 4.1 What it does
+
+A **HAL** gives upper layers one consistent interface to hardware functions, hiding register-level details.
+
+The same action at four levels on the STM32F411:
+
+```c
+/* 1. Direct register (Module 2) */
+GPIOA->BSRR = (1U << 5);
+
+/* 2. Low-layer library (thin, close to registers) */
+LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_5);
+
+/* 3. Vendor HAL (portable across the STM32 family) */
+HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+
+/* 4. Your own abstraction (portable across vendors) */
+led_on();
+```
+
+### 4.2 A minimal portable interface
+
+```c
+/* led.h: the contract the application sees */
+void led_init(void);
+void led_on(void);
+void led_off(void);
+```
+
+```c
+/* led_stm32f4.c: one implementation, selected at build time */
+#include "led.h"
+#include "stm32f4xx_hal.h"
+
+void led_on(void)  { HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);   }
+void led_off(void) { HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET); }
+```
+
+Moving to another MCU means adding `led_other_mcu.c`. The application does not change.
+
+### 4.3 Costs and benefits (Module 1 constraints again)
+
+| Benefit | Cost |
+|---|---|
+| Faster development, fewer register mistakes | Extra **flash** (code size) and **RAM** |
+| Portability across a family or vendor | Extra **cycles** per call, which may matter in tight loops or ISRs |
+| Readable code | Generic HAL code handles cases you do not need |
+| Vendor code is tested on many boards | Hidden initialization and bugs you did not write |
+
+> **Design judgement:** use the HAL for everything except what the constraint model says you cannot afford. Drop to register-level (or LL) code for hot paths, tight timing or very small devices.
+
+### 4.4 Common failure modes
+
+- **Leaky abstraction:** callers must know hardware details anyway (such as which timer a function secretly uses).
+- **Over-abstraction:** many layers for a product that never changes MCU.
+- **Under-abstraction:** `GPIOA->BSRR` scattered across the application.
+
+---
+
+## Exercise
+
+Take a small program you have written (or the Module 2 LED code) and sketch its layers on paper. For each function, name the layer it belongs to and mark any call that violates the rules in section 3.
+
+---
+
+## Summary
+
+- The stack is hardware → drivers → middleware → application, with **firmware** as the integrated image of all software layers.
+- Dependencies point downward. Lower layers reach up only through callbacks and events.
+- A HAL trades flash, RAM and cycles for portability and speed of development. The constraint model decides when to bypass it.
+
+## Check Your Understanding
+
+**Q1.** Which of these is a *middleware* component?
+
+- A. A GPIO register definition
+- B. A TCP/IP stack such as lwIP
+- C. The on-board LED
+- D. The linker script
+
+**Q2.** Which rule keeps a stack maintainable?
+
+- A. The application should write registers directly for speed
+- B. Drivers should call application functions directly
+- C. Layers should depend on the layers below, through defined interfaces
+- D. Middleware must be written in assembly
+
+**Q3.** What is the main cost of a HAL?
+
+- A. It prevents the use of an RTOS
+- B. It makes code non-portable
+- C. It removes the need for a datasheet
+- D. Extra code size and execution overhead
+
+**Q4.** In this course, "firmware" means:
+
+- A. Only the bootloader
+- B. Hardware schematics
+- C. The complete program image stored in non-volatile memory
+- D. Only the application logic
+
+### Answer Key
+
+1. **B**: reusable, hardware-independent services such as TCP/IP are middleware.
+2. **C**: downward dependencies through defined interfaces.
+3. **D**: abstraction adds flash/RAM use and call overhead.
+4. **C**: the whole image, in this course's broad definition.
