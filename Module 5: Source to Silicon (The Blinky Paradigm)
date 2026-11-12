@@ -1,5 +1,204 @@
-### Module 5: Source to Silicon (The Blinky Paradigm)
+# Module 5: Source to Silicon (The Blinky Paradigm)
 
-- Conceptual execution of an embedded application.
-- Comparing representation: C code vs. Assembly vs. raw Hex/Machine code.
-- How the MCU processes instructions at the gate level during a basic toggle event.
+**Level:** Intermediate · **Time:** ~75 min · **Hardware:** NUCLEO-F411RE
+
+**Prerequisites:** Modules 1–4, basic digital logic (gates, flip-flops).
+
+## Learning Objectives
+
+By the end of this module you will be able to:
+
+1. Describe the conceptual execution of an embedded application from reset to `main()` and into the main loop.
+2. Compare the same operation as C, assembly and machine code.
+3. Explain, step by step, what the MCU does internally when one instruction toggles a pin.
+
+---
+
+## 1. Conceptual Execution of an Embedded Application
+
+```
+Power-on / reset
+   └─► Core loads SP and PC from the vector table
+        └─► Reset handler (startup code)
+             ├─ copy .data from flash to RAM
+             ├─ zero .bss
+             ├─ configure clocks (system init)
+             └─ call main()
+                  └─ initialize peripherals
+                       └─ while (1) { do work }   ← never returns
+```
+
+An embedded application normally **never exits**. If `main()` returned there would be nothing to return to, so the main loop runs forever.
+
+## 2. The Blinky in Three Representations
+
+### 2.1 C
+
+```c
+#include <stdint.h>
+
+#define RCC_AHB1ENR  (*(volatile uint32_t *)0x40023830U)
+#define GPIOA_MODER  (*(volatile uint32_t *)0x40020000U)
+#define GPIOA_BSRR   (*(volatile uint32_t *)0x40020018U)
+
+int main(void)
+{
+    RCC_AHB1ENR |= 1U;                     /* clock GPIOA            */
+    GPIOA_MODER &= ~(3U << 10);            /* PA5 mode bits = 00     */
+    GPIOA_MODER |=  (1U << 10);            /* PA5 = output           */
+
+    while (1) {
+        GPIOA_BSRR = (1U << 5);            /* LED on                 */
+        for (volatile uint32_t i = 0; i < 500000; i++) { }
+        GPIOA_BSRR = (1U << (5 + 16));     /* LED off                */
+        for (volatile uint32_t i = 0; i < 500000; i++) { }
+    }
+}
+```
+
+`volatile` on the loop counter stops the compiler from deleting the delay.
+
+### 2.2 Assembly (Thumb-2)
+
+To follow every instruction, reduce it to one action: turn the LED on, then stop.
+
+```asm
+    .syntax unified
+    .thumb
+
+start:
+    ldr  r0, =0x40020018    @ r0 = address of GPIOA_BSRR
+    movs r1, #0x20          @ r1 = 1 << 5  (bit for PA5)
+    str  r1, [r0]           @ write r1 to [r0]: set PA5
+    b    .                  @ branch to self: halt here
+```
+
+(Clock enable and pin mode setup omitted. Assume they are done.)
+
+### 2.3 Machine code
+
+When assembled, the four instructions (plus a stored 32-bit constant) look like this:
+
+| Offset | Instruction | Encoding (hex) | Notes |
+|---|---|---|---|
+| 0x0 | `ldr r0, [pc, #4]` | `0x4801` | The `=0x40020018` pseudo-instruction becomes a PC-relative load from a *literal pool* |
+| 0x2 | `movs r1, #0x20` | `0x2120` | `0010 0 001 00100000`: opcode, register 1, immediate |
+| 0x4 | `str r1, [r0]` | `0x6001` | `0110 0 00000 000 001`: store, base r0, source r1 |
+| 0x6 | `b .` | `0xE7FE` | Unconditional branch to itself |
+| 0x8 | literal | `0x40020018` | The constant loaded by the first instruction |
+
+In memory the bytes are **little-endian**:
+
+```
+01 48  20 21  01 60  FE E7  18 00 02 40
+```
+
+As an **Intel HEX** record (illustrative, placed at address 0):
+
+```
+:0C000000014820210160FEE718000240CA
+```
+
+| Field | Value | Meaning |
+|---|---|---|
+| `:` | | Start of record |
+| `0C` | 12 | Byte count |
+| `0000` | | Address |
+| `00` | | Record type: data |
+| `014820210160FEE718000240` | | The 12 data bytes |
+| `CA` | | Checksum: two's complement of the sum of all other bytes |
+
+A real image is placed at `0x08000000`, so the file begins with an *extended linear address* record: `:020000040800F2`.
+
+### 2.4 Comparing the representations
+
+| | C | Assembly | Machine code |
+|---|---|---|---|
+| Readable by | Humans | Humans (with effort) | The CPU |
+| Portable | Mostly | No, tied to the ISA | No |
+| Detail visible | Intent | Registers and instructions | Exact bits and addresses |
+| Produced by | You | Compiler or you | Assembler |
+
+---
+
+## 3. What the MCU Does During `str r1, [r0]`
+
+> This is a **conceptual** model at functional-block and gate level. Real silicon details are not public, but the mechanisms below are accurate in principle.
+
+The Cortex-M4 has a three-stage pipeline: **fetch → decode → execute**. Following one instruction:
+
+| Step | What happens | Hardware involved |
+|---|---|---|
+| 1. **Fetch** | The program counter (PC) puts an address on the instruction bus. Flash returns the 16-bit word `0x6001`. The PC advances | PC register, adder, flash and its prefetch/cache |
+| 2. **Decode** | Control logic examines the opcode bits. It recognizes *store*, selects R0 (address) and R1 (data) as sources | Instruction decoder (combinational gates), register-file read multiplexers |
+| 3. **Execute** | The address from R0 (`0x40020018`) and the data from R1 (`0x20`) are sent to the load/store unit | Address generation, load/store unit |
+| 4. **Bus access** | A write transaction is placed on the bus. The **bus matrix** routes it by address range to the peripheral bus holding GPIOA | Bus matrix, address decoder |
+| 5. **Peripheral decode** | GPIOA compares the upper address bits against its base address (comparator gates) and the low bits select the `BSRR` register | Address-comparison logic |
+| 6. **Register action** | Writing 1 to bit 5 of `BSRR` asserts the *set* input of the output-data flip-flop for PA5 (`ODR5`). The bit is stored in the flip-flop | Flip-flop with set/reset logic |
+| 7. **Pin drive** | The flip-flop output goes to the pin's **output stage**: a PMOS/NMOS push-pull pair. High output turns the PMOS on and the NMOS off, connecting the pin to VDD | Output driver transistors (enabled because `MODER` selects output) |
+| 8. **Physical effect** | Current flows through the series resistor and LED to ground. The LED lights | Board: pin, resistor, LED |
+
+Two gating details explain earlier lessons:
+
+- **Why the clock must be enabled:** the clock path to GPIOA passes through a gate controlled by the `RCC` enable bit. With it off, the GPIOA registers cannot be clocked and writes are ignored.
+- **Why `MODER` matters:** its two bits per pin control whether the output driver is enabled or the pin is a high-impedance input.
+
+### Timing
+
+At 100 MHz one cycle is 10 ns. The store completes in a few cycles, and the pin changes within tens of nanoseconds. Peripheral buses may run slower than the core, so exact timing depends on the clock configuration. The visible blink rate is set entirely by the software delay.
+
+---
+
+## Lab: Source to Silicon on Your Board
+
+1. Build the C blinky from section 2.1 and flash it.
+2. Run `arm-none-eabi-objdump -d` on the ELF file. Find the store to `0x40020018` and match it to the C line.
+3. Compile once with `-O0` and once with `-Os`. Compare the assembly of the delay loop and explain why `volatile` still matters.
+4. Run `arm-none-eabi-objcopy -O ihex` and find the data record that contains the code. Decode its byte count and address fields.
+5. (Optional) Use a logic analyzer or oscilloscope on PA5 and compare the measured period to your delay count.
+
+---
+
+## Summary
+
+- Execution starts at the vector table, runs startup code, then reaches `main()` and an endless loop.
+- The same action exists as C (intent), assembly (instructions) and machine code (bits and addresses).
+- A single `str` fetches, decodes and executes, then travels through the bus matrix and address decoder to a GPIO register. That register drives a flip-flop and an output transistor pair, which lights the LED.
+- Clock enables and pin-mode bits are literal hardware gates, which is why they must be set first.
+
+## Check Your Understanding
+
+**Q1.** Why does an embedded `main()` normally end in an infinite loop?
+
+- A. The compiler requires it
+- B. There is no operating system to return to
+- C. It saves power
+- D. It prevents interrupts
+
+**Q2.** What is the effect of writing `1` to bit 5 of `GPIOA_BSRR`?
+
+- A. It toggles PA5 every clock cycle
+- B. It resets PA5 low
+- C. It sets PA5 high
+- D. It enables the GPIOA clock
+
+**Q3.** In the toggle sequence, which block routes a bus write to the correct peripheral?
+
+- A. The linker
+- B. The bus matrix and address decoding logic
+- C. The assembler
+- D. The ALU
+
+**Q4.** Why does `volatile` matter on the delay loop counter?
+
+- A. It makes the loop faster
+- B. It places the counter in flash
+- C. It disables interrupts
+- D. It prevents the compiler from removing a loop that appears to do nothing
+
+### Answer Key
+
+1. **B**: there is no caller to return to.
+2. **C**: bits 0–15 of `BSRR` set pins. Bits 16–31 reset them.
+3. **B**: address decoding routes each access to its target.
+4. **D**: without it the optimizer may delete the whole delay.
