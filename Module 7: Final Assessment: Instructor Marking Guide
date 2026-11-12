@@ -1,1 +1,112 @@
+# Final Assessment: Instructor Marking Guide
+
+> **Do not publish.** Keep separate from the student paper.
+
+## Section A: Answer Key (2 marks each)
+
+| Q | Ans | Reason |
+|---|---|---|
+| A1 | B | Embedded design is about fit to constraints for a known task |
+| A2 | C | 0.05 × 2,000,000 = $100,000 |
+| A3 | B | MPUs use external DRAM and run full OS with MMU |
+| A4 | B | One bus for code and data creates the bottleneck |
+| A5 | A | Memory-mapped I/O: peripherals live in the same address space |
+| A6 | B | Initial values stored in flash and copied to RAM at startup |
+| A7 | B | Dependencies must point downward |
+| A8 | C | TCP/IP, RTOS, filesystems and USB stacks are middleware |
+| A9 | B | The linker script defines memory and places sections |
+| A10 | C | Relocatable: addresses and symbols still unresolved |
+| A11 | B | `movs` writes an immediate into a register |
+| A12 | C | The output-data flip-flop holds the pin state |
+
+## Section B: Model Answers (6 marks each)
+
+Award marks as shown. Accept any correct equivalent.
+
+**B1**
+- (2) General-purpose is judged mainly on performance/flexibility. Embedded is judged on fit to constraints for one task.
+- (2) First constraint with a correct consequence (e.g. power: sleep modes, low duty cycle, lower clock).
+- (2) Second constraint with a correct consequence (e.g. cost: cheapest part that meets requirement, volume economics).
+
+**B2**
+- (2) Separate internal buses (instruction, data, system) so fetch and data access can overlap.
+- (2) One unified address space presented to the programmer.
+- (2) On Cortex-M a pointer can reach flash or RAM with the same instructions. On AVR code and data have separate address spaces, so constants in flash need special access (e.g. `PROGMEM`).
+
+**B3**
+- (2) `.data` is copied from its load address in flash to its run address in RAM.
+- (2) `.bss` is zeroed in RAM.
+- (2) The initial values must be stored in flash and the variable occupies RAM, so it costs both.
+
+**B4**
+- (2) Broad: everything stored in non-volatile memory.
+- (2) Narrow: low-level code tied to hardware (bootloader, drivers, BSP).
+- (2) A callback registered by the application, or an event posted to a queue, so the driver does not depend on application code.
+
+**B5**
+- (2) Linker: combines object files and resolves symbols.
+- (2) Locator: assigns absolute addresses to sections (in GNU, driven by the linker script).
+- (2) LMA = where a section is stored in the image. VMA = where it runs. `.data`: LMA in flash, VMA in RAM.
+
+## Section C: Model Answers (22 marks)
+
+**(a)** (6): MCU-based design.
+- Power (1.5): on-chip memory and low-power modes enable µA sleep. An MPU with DRAM cannot.
+- Size (1.5): single-chip integration keeps the board small.
+- Cost (1.5): the target is $1.50 or less, which fits an MCU. An MPU plus DRAM and storage does not.
+- Reliability (1.5): fewer components, and deterministic bare-metal or RTOS behavior suits unattended operation.
+
+**(b)** (6): Maximum average current.
+- (1) Derated capacity = 1,000 × 0.8 = **800 mAh**
+- (1) Time = 3 × 8,760 = **26,280 h**
+- (2) Current = 800 ÷ 26,280 ≈ **0.0304 mA**
+- (1) Converted: **≈ 30 µA**
+- (1) Correct units and a sensible statement of the result.
+
+Award follow-through marks for correct method with an arithmetic slip.
+
+**(c)** (5)
+- (3) One valid component per layer, e.g. drivers: ADC/UART/SPI via HAL; middleware: FreeRTOS or a lightweight radio stack; application: sampling and transmit logic.
+- (1) HAL sits inside the driver layer, between hardware and upper layers.
+- (1) A valid trade-off, e.g. extra flash/RAM and cycles, which matters with a tight power and cost budget.
+
+**(d)** (5)
+- (2) First reliability measure with explanation (watchdog, brown-out reset, CRC on stored data).
+- (2) Second reliability measure with explanation.
+- (1) Toolchain setting (`-Os`, `--gc-sections` with function/data sections, `nano.specs`) with correct effect.
+
+## Section D: Model Answers (24 marks)
+
+**D1** (4)
+- (1) Pin PA5.
+- (1) It is driven **low** (reset).
+- (2) `0x00200000` is bit 21. Bits 16–31 of BSRR reset pins, so bit 21 resets pin 21 − 16 = 5.
+
+**D2** (4)
+- (2) The 16-bit `movs` encodes only an 8-bit immediate (0–255).
+- (2) Alternative: PC-relative literal-pool load (`ldr r1, =...`), or a 32-bit Thumb-2 move.
+
+**D3** (6)
+- (2) Little-endian: low byte first, so `20 21` becomes `0x2120` and `01 60` becomes `0x6001`.
+- (2) `0x2120` = `movs r1, #0x20`.
+- (2) `0x6001` = `str r1, [r0]`.
+
+**D4** (10): about 1.5 marks per correct step, 10 maximum.
+1. Fetch: PC places the address on the instruction bus, flash returns `0x6001`, PC advances.
+2. Decode: control logic recognizes *store* and selects R0 (address) and R1 (data).
+3. Execute: the address (`0x40020018`) and data are sent to the load/store unit.
+4. Bus routing: the bus matrix routes the write by address range to the bus holding GPIOA.
+5. Peripheral decode: GPIOA compares the upper address bits to its base, and the low bits select `BSRR`.
+6. Register action: the write to the correct BSRR bit sets or resets the pin's output-data flip-flop.
+7. Output stage: the flip-flop output drives the PMOS/NMOS push-pull pair, enabled because `MODER` selects output.
+8. Clock enable: the RCC enable bit gates the clock to GPIOA. Without it, the writes are ignored.
+
+## Grade Bands (suggested)
+
+| Score | Outcome |
+|---|---|
+| 85–100 | Distinction |
+| 70–84 | Merit |
+| 60–69 | Pass |
+| Below 60 | Not yet competent. Review the modules mapped in the Coverage table |
 
