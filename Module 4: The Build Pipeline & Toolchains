@@ -1,4 +1,178 @@
-### Module 4: The Build Pipeline & Toolchains
+# Module 4: The Build Pipeline & Toolchains
 
-- Anatomy of a toolchain: Cross-compilers, assemblers, linkers, and locators.
-- Understanding how source code transforms into executable binaries.
+
+**Level:** Intermediate · **Time:** ~60 min · **Hardware:** NUCLEO-F411RE (optional)
+
+**Prerequisites:** Modules 1–3, basic C, familiarity with a command line.
+
+## Learning Objectives
+
+By the end of this module you will be able to:
+
+1. Name each stage of an embedded toolchain and say what goes in and what comes out.
+2. Explain what a cross-compiler is and why embedded development needs one.
+3. Describe the roles of the linker and the locator, including the part played by the linker script.
+4. Follow source code to a flashable binary and inspect the result.
+
+---
+
+## 1. Native vs. Cross Compilation
+
+- A **native compiler** produces code that runs on the same machine that compiled it (a PC compiling for a PC).
+- A **cross-compiler** runs on the **host** (your PC) and produces code for a different **target** (the MCU).
+
+You cannot compile on the MCU: it has KBs of RAM, no OS and no filesystem. The GNU Arm Embedded toolchain uses the prefix `arm-none-eabi-`, meaning ARM target, no OS, embedded ABI.
+
+## 2. The Pipeline
+
+```
+ main.c  ─┐
+ uart.c  ─┤ preprocess ─► compile ─► assemble ─► main.o
+ start.s ─┘                                      uart.o
+                                                 start.o
+                                                   │
+                                      link + locate (linker script)
+                                                   │
+                                                 app.elf  ─► objcopy ─► app.bin / app.hex
+                                                   │                          │
+                                              debugger                     flash tool
+```
+
+| Stage | Tool (GNU) | Input → Output | What happens |
+|---|---|---|---|
+| **Preprocessor** | `arm-none-eabi-gcc -E` | `.c` → expanded `.c` | `#include`, `#define`, conditional compilation |
+| **Compiler** | `arm-none-eabi-gcc -S` | expanded `.c` → `.s` | C translated to assembly for the target ISA, with optimization |
+| **Assembler** | `arm-none-eabi-as` | `.s` → `.o` | Assembly to machine code. Addresses are still **relocatable** |
+| **Linker** | `arm-none-eabi-ld` (via gcc) | many `.o` + libraries → one image | Resolves symbols, merges same-name sections, applies relocations |
+| **Locator** | The linker, driven by a **linker script** | sections → absolute addresses | Assigns final flash/RAM addresses to each section |
+| **Object copy** | `arm-none-eabi-objcopy` | `.elf` → `.bin` / `.hex` | Strips metadata and produces a flashable format |
+
+### Linker vs. locator
+
+Classical embedded toolchains separate them:
+
+- The **linker** combines object files and resolves references between them.
+- The **locator** places the combined sections at fixed addresses in the target's memory.
+
+In the GNU toolchain, one tool performs both. The `MEMORY` and `SECTIONS` commands in the **linker script** are the locator instructions.
+
+## 3. Object Files: What Is Inside
+
+A `.o` file is not yet runnable:
+
+- **Sections** (`.text`, `.data`, `.bss`, `.rodata`) with addresses starting at 0
+- A **symbol table**: functions and variables it *defines* and ones it *needs*
+- **Relocation entries**: "patch this location with the final address of symbol X"
+
+The linker uses symbol tables to match each unresolved reference to its definition, then applies the relocations once final addresses are known.
+
+## 4. The Linker Script
+
+It describes the target's memory and where sections go:
+
+```ld
+MEMORY
+{
+  FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 512K
+  RAM   (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
+}
+
+SECTIONS
+{
+  .isr_vector : { KEEP(*(.isr_vector)) } > FLASH
+  .text       : { *(.text*) *(.rodata*) } > FLASH
+
+  _sidata = LOADADDR(.data);
+  .data : { _sdata = .; *(.data*) _edata = .; } > RAM AT > FLASH
+  .bss  : { _sbss  = .; *(.bss*) *(COMMON) _ebss = .; } > RAM
+}
+```
+
+Key idea: `.data` has a **load address (LMA)** in flash and a **run address (VMA)** in RAM. The startup code (Module 2) copies it across using the symbols `_sidata`, `_sdata` and `_edata`.
+
+## 5. Important Compiler and Linker Options (Cortex-M4)
+
+| Option | Meaning |
+|---|---|
+| `-mcpu=cortex-m4 -mthumb` | Target core and Thumb instruction set |
+| `-mfpu=fpv4-sp-d16 -mfloat-abi=hard` | Use the single-precision hardware FPU |
+| `-Os` / `-O2` / `-O0` | Optimize for size / speed / none (best for debugging) |
+| `-ffunction-sections -fdata-sections` | One section per function or variable, so unused ones can be dropped |
+| `-Wl,--gc-sections` | Linker discards unused sections (saves flash, Module 1 constraint) |
+| `-T linker.ld` | Use this linker script |
+| `-Wl,-Map=app.map` | Produce a memory map file |
+| `--specs=nano.specs` | Use the smaller newlib-nano C library |
+
+## 6. The Outputs
+
+| Format | Contains | Typical use |
+|---|---|---|
+| `.elf` | Code, data, symbols, debug info | Debugging, analysis |
+| `.bin` | Raw bytes only | Simple flashing at a known address |
+| `.hex` (Intel HEX) | Bytes plus addresses in text records | Programmer tools, production |
+| `.map` | Where every symbol and section was placed | Finding what uses your flash and RAM |
+
+## 7. Why the Toolchain Matters for Constraints
+
+- `-Os` and `--gc-sections` reduce flash (**cost, size**).
+- The map file shows what is eating RAM, a common cause of unreliable behavior (**reliability**).
+- Heavy libraries, such as `printf` with floating point, can add tens of KB.
+
+---
+
+## Lab: Walk the Pipeline
+
+Using any small project:
+
+1. Run each stage by hand on one file: `-E`, `-S`, `-c`, then link.
+2. Open the `.s` file and find your function in assembly.
+3. Run `arm-none-eabi-nm main.o` and find one *undefined* symbol. Find where it gets defined after linking.
+4. Open the `.map` file and locate `.data`, `.bss` and your biggest function.
+5. Produce `.bin` and `.hex` using `objcopy`. Compare their sizes.
+
+---
+
+## Summary
+
+- A cross-compiler runs on the host and targets the MCU.
+- Pipeline: preprocess → compile → assemble → link → locate → convert to a flashable format.
+- Object files are relocatable. The linker resolves symbols and the locator assigns addresses using the linker script.
+- `.data` has separate load and run addresses.
+- The toolchain options directly affect flash, RAM and reliability.
+
+## Check Your Understanding
+
+**Q1.** What distinguishes a cross-compiler?
+
+- A. It compiles faster than a native compiler
+- B. It only compiles assembly
+- C. It runs on the host but produces code for a different target
+- D. It runs on the MCU
+
+**Q2.** What is the **locator's** job?
+
+- A. Convert C to assembly
+- B. Assign final addresses to code and data sections in target memory
+- C. Remove comments from the source
+- D. Program the flash
+
+**Q3.** Why does `.data` have both an LMA and a VMA?
+
+- A. Initial values are stored in flash but the variables live in RAM
+- B. The linker made a mistake
+- C. It is stored in RAM and copied to flash
+- D. Only debug builds need this
+
+**Q4.** What does `-Wl,--gc-sections` achieve?
+
+- A. It enables the FPU
+- B. It adds debug information
+- C. It selects the Cortex-M4 core
+- D. It removes unused sections to reduce image size
+
+### Answer Key
+
+1. **C**: host and target differ.
+2. **B**: the locator assigns absolute addresses.
+3. **A**: persistent initial values in flash, working variables in RAM.
+4. **D**: with function and data sections enabled, unused code is discarded.
