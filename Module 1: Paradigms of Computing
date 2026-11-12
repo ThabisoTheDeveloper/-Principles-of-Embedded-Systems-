@@ -1,4 +1,172 @@
-### Module 1: Paradigms of Computing
+# Module 1: Paradigms of Computing
 
-- Evolution of general-purpose vs. application-specific computing.
-- Defining the embedded system constraint model (power, size, cost, reliability).
+**Level:** Intermediate · **Time:** ~45 min · **Hardware:** NUCLEO-F411RE (optional for this module)
+
+**Prerequisites:** basic C, Ohm's law, and the ability to read a simple schematic and a datasheet table.
+
+## Learning Objectives
+
+By the end of this module you will be able to:
+
+1. Explain how computing evolved from general-purpose to application-specific systems, and where the boundary between them now sits.
+2. Apply the **embedded constraint model** (power, size, cost, reliability) to justify a hardware choice with numbers.
+
+---
+
+## 1. Evolution: General-Purpose vs. Application-Specific Computing
+
+### 1.1 The microprocessor started application-specific
+
+The Intel 4004 (1971) was designed for a family of Busicom calculators. A general-purpose CPU grew out of a specific product, and then the industry split into two paths.
+
+### 1.2 A brief timeline
+
+- **1940s–60s, Mainframes:** room-sized, shared and expensive, built for general calculation.
+- **Mid-1960s, Apollo Guidance Computer:** an early computer built into a machine to do one job.
+- **1971, Intel 4004:** a CPU on a single chip, which made computing small and cheap.
+- **1970s–80s, Microcontrollers (e.g. TMS1000, Intel 8051):** CPU, memory and peripherals on one chip, ideal for dedicated tasks.
+- **1980s–2000s, Personal computers:** general-purpose computing reaches homes and offices.
+- **2000s–today, Smartphones, IoT and SoCs:** both paradigms are everywhere and increasingly connected.
+
+### 1.3 Two design philosophies
+
+- **General-purpose:** hardware is built for *unknown* future workloads. You pay for flexibility (MMU, large caches, high clock rates, an OS) whether or not the task needs it.
+- **Application-specific:** hardware and software are co-designed for *one known workload*. Anything the task does not need is removed.
+
+### 1.4 A continuum, not a binary
+
+- **Microcontroller (Cortex-M):** bare-metal or RTOS, KB to low MB of on-chip memory, high timing determinism. Used in sensors, motor control and appliances.
+- **Application processor / SoC (Cortex-A):** Linux or Android, external DRAM, lower determinism. Used in gateways and smart displays.
+- **FPGA / ASIC:** no OS, behavior implemented as hardware logic, very high determinism. Used in high-speed I/O, DSP and high-volume products.
+- **PC / server:** a general-purpose OS and GBs of memory, with the lowest determinism. Used for general workloads.
+
+> **Design question:** Does the product need an OS and a rich software stack, or fixed behavior with tight timing, low power and low unit cost? That answer decides where on the continuum you land.
+
+---
+
+## 2. The Embedded Constraint Model
+
+A general-purpose machine is judged on performance. An embedded system is judged on **how well it fits its constraints**. Four constraints dominate.
+
+### 2.1 Power
+
+The key quantity is **average current**, not peak current.
+
+**Worked example (illustrative figures):** a sensor on a CR2032 coin cell (about 225 mAh) wakes every 10 s, draws 5 mA for 10 ms, and sleeps at 2 µA.
+
+- Active contribution: 5 mA × (10 ms ÷ 10 s) = 0.005 mA
+- Sleep contribution: about 0.002 mA, since it sleeps almost all the time
+- Average current: about **0.007 mA**
+- Ideal battery life: 225 mAh ÷ 0.007 mA ≈ 32,000 h ≈ **3.7 years**
+
+Takeaways:
+
+- At low duty cycles, **sleep current dominates** the power budget.
+- Real life is worse: coin cells derate with temperature, self-discharge and high pulse current. Always measure.
+- Lower power also means less heat, which helps size and reliability.
+
+### 2.2 Size
+
+- The system must fit inside the product, so the chip, board and connectors must be compact.
+- Smaller packages can mean tighter routing, harder assembly and a higher board cost.
+- Heat has nowhere to go in a small sealed enclosure, so size and power are coupled.
+
+### 2.3 Cost
+
+- Separate **unit cost** (parts and assembly) from **NRE** (development, tooling, certification).
+- At 1,000,000 units, saving **$0.10** per unit is worth **$100,000**, which can justify weeks of optimization.
+- At 500 units, engineering time costs more than the parts, so the "overpowered" part may be the cheaper product.
+
+### 2.4 Reliability
+
+- Devices often run unattended for years, with no keyboard and no reset button.
+- Typical measures: **watchdog timers**, **brown-out reset** and defensive error handling.
+- Hostile environments (heat, vibration, electrical noise) raise the bar further.
+- Safety-critical products, such as automotive and medical devices, follow dedicated standards.
+
+### 2.5 The constraints pull against each other
+
+- **Better performance** usually costs power and money.
+- **Better reliability** (redundancy, error checking) usually costs money, size and power.
+- **Smaller size** usually costs money and thermal margin.
+- **Lower cost** usually costs performance headroom, and sometimes reliability.
+
+> **Key idea:** Good embedded design is not about the best components. It is about the **right balance** for the job.
+
+---
+
+## 3. Hardware and Software
+
+An embedded system needs both to work.
+
+- **Hardware:** the physical components. For example, the [STM32F411RET6](https://www.st.com/en/microcontrollers-microprocessors/stm32f411re.html) **microcontroller** (an integrated circuit) on the **NUCLEO-F411RE** board, which makes setup and configuration easy.
+- **Software (firmware):** the program loaded into the hardware that makes it do its job.
+
+Most devices around you contain an embedded system, which is why these constraints shape so much of modern engineering.
+
+---
+
+## 4. Applying the Model: Is the F411 the Right Part?
+
+The STM32F411RET6 is a Cortex-M4F microcontroller. It is a good learning platform because it is capable and well documented.
+
+Ask whether it would be the right choice for the coin-cell sensor in section 2.1. Argue from power, size, cost and reliability, not from "it's what I have".
+
+### Task: datasheet audit
+
+Open the STM32F411xC/xE datasheet and write down:
+
+1. Run-mode current at a given frequency (**power**)
+2. Current in the lowest-power mode (**power**)
+3. Flash and SRAM sizes (**cost, size**)
+4. Available packages and their dimensions (**size**)
+5. Operating temperature range (**reliability**)
+6. Whether brown-out reset and a watchdog are available (**reliability**)
+
+Then write 3–4 sentences stating whether you would ship this part in the sensor, and why.
+
+---
+
+## Summary
+
+- General-purpose computing optimizes for flexibility. Application-specific computing optimizes for fit to a known task.
+- The two paradigms form a continuum: MCU, SoC, FPGA/ASIC, PC.
+- The constraint model is **power, size, cost and reliability**. Quantify each one, because trade-offs are only defensible with numbers.
+- Average current, volume economics and failure handling are the three habits to build early.
+
+## Check Your Understanding
+
+**Q1.** Why does sleep current often dominate battery life in a low-duty-cycle device?
+
+- A. Sleep mode uses more current than active mode
+- B. The device spends almost all of its time asleep
+- C. Batteries discharge faster when idle
+- D. Peak current is always the limiting factor
+
+**Q2.** When does saving $0.10 per unit most clearly justify extra engineering effort?
+
+- A. Only for one-off prototypes
+- B. At low volume, where engineering time is cheap
+- C. At high volume, where savings multiply per unit
+- D. Never, since reliability always matters more
+
+**Q3.** Which statement best describes application-specific design?
+
+- A. Hardware is built for unknown future workloads
+- B. Hardware and software are chosen for one known task
+- C. It always uses a full operating system
+- D. It prioritizes the highest possible clock rate
+
+**Q4.** Why might an engineer choose a *less powerful* microcontroller for a product?
+
+- A. Less powerful parts are always more reliable
+- B. It meets the requirements at lower cost and power
+- C. It removes the need for firmware
+- D. It guarantees a smaller package
+
+### Answer Key
+
+1. **B**: the device spends almost all of its time asleep, so sleep current dominates the average.
+2. **C**: per-unit savings multiply with volume.
+3. **B**: fit to one known task is the defining goal.
+4. **B**: the cheapest part that meets the requirement is usually the right one.
