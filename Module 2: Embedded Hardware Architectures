@@ -1,5 +1,245 @@
-### Module 2: Embedded Hardware Architectures
+# Module 2: Embedded Hardware Architectures
 
-- Structural differences: Microprocessors (MPUs) vs. Microcontrollers (MCUs).
-- Von Neumann vs. Harvard architectures, CISC vs. RISC.
-- Memory organization, registers, and the mechanics of memory mapping.
+**Level:** Intermediate · **Time:** ~60 min · **Hardware:** NUCLEO-F411RE
+
+**Prerequisites:** Module 1, C pointers and bitwise operators, binary/hex arithmetic.
+
+## Learning Objectives
+
+By the end of this module you will be able to:
+
+1. Distinguish MPUs from MCUs structurally and justify the choice for a given product.
+2. Explain Von Neumann vs. Harvard and CISC vs. RISC, and say where real MCUs actually sit.
+3. Describe how code, data, stack and peripherals are laid out in memory, and access peripheral registers through the memory map.
+
+---
+
+## 1. Microprocessors (MPUs) vs. Microcontrollers (MCUs)
+
+### 1.1 Structural difference
+
+- An **MPU** is essentially the CPU (plus MMU and caches). Main memory (DRAM), storage and most peripherals live **outside** the chip, on the board.
+- An **MCU** integrates the CPU, **flash**, **SRAM**, clocks, reset logic and **peripherals** (GPIO, timers, UART, SPI, I2C, ADC) on **one die**.
+
+| | MCU (e.g. STM32F411) | MPU / application processor (e.g. Cortex-A SoC) |
+|---|---|---|
+| Memory | On-chip flash + SRAM (KB to low MB) | External DRAM + external storage (GB) |
+| MMU | Usually none (optional MPU for protection) | Yes, virtual memory |
+| Software | Bare-metal / RTOS | Linux / Android |
+| Boot time | Microseconds to milliseconds | Seconds |
+| Timing determinism | High | Lower |
+| Board complexity | Low (few passives, often 2 layers) | High (DRAM routing, power sequencing, 4+ layers) |
+| Power | µA to mA | mW to W |
+
+### 1.2 Why the structure matters (link to Module 1)
+
+- **Cost and size:** integration removes parts and board area.
+- **Power:** no external DRAM to refresh, so deep sleep is possible at µA levels.
+- **Reliability:** fewer components and interconnects mean fewer failure points.
+- **Trade-off:** you give up the MMU, virtual memory and the large software ecosystem.
+
+> **Rule of thumb:** if the product needs a full OS, a filesystem, a display stack or heavy networking, look at an MPU. If it needs tight timing, low power and a small BOM, look at an MCU.
+
+---
+
+## 2. Von Neumann vs. Harvard
+
+### 2.1 The two models
+
+| | Von Neumann | Harvard |
+|---|---|---|
+| Code and data | Same memory, same bus | Separate memories and buses |
+| Fetch + data access | Sequential (the *Von Neumann bottleneck*) | Can happen in parallel |
+| Address space | Single | Often separate (code vs. data) |
+| Pros | Simple, flexible | Higher throughput, code can't be overwritten by data |
+| Examples | Classic PCs, Cortex-M0/M0+ | AVR (ATmega), 8051, many DSPs |
+
+### 2.2 Reality: modified Harvard
+
+Most modern MCUs and CPUs blend both:
+
+- **Cortex-M3/M4** (e.g. STM32F411) has **separate internal buses** for instruction fetch, data access and system peripherals, so fetches and data accesses can overlap. The programmer still sees **one unified address space**.
+- **AVR** is "true" Harvard: separate address spaces mean constants in flash need special access (e.g. `PROGMEM`).
+- **x86 PCs** are Von Neumann at the memory level but use split L1 instruction/data caches, which is Harvard-like inside the CPU.
+
+> **Practical consequence:** on a unified address space (Cortex-M) a pointer reaches flash or RAM with the same instructions. On a split-space architecture (AVR) it does not, and the compiler needs to be told which space a pointer refers to.
+
+---
+
+## 3. CISC vs. RISC
+
+| | CISC | RISC |
+|---|---|---|
+| Instruction set | Large, many specialised instructions | Small, simple instructions |
+| Instruction length | Variable | Mostly fixed (or a small set of sizes) |
+| Memory access | Many instructions can operate directly on memory | **Load/store**: only load and store touch memory |
+| Hardware | Complex decode (x86 translates to internal micro-ops) | Simpler decode, easier to pipeline |
+| Code density | Often higher | Historically lower, mitigated by compressed encodings |
+| Examples | x86, 8051 | ARM, RISC-V, AVR, MIPS |
+
+Notes for embedded work:
+
+- **Cortex-M** uses the **Thumb-2** instruction set: a mix of 16- and 32-bit encodings that keeps code small while retaining load/store RISC behavior.
+- The distinction has **blurred**: modern x86 decodes to RISC-like micro-ops, and RISC cores add specialised instructions (DSP, FPU).
+- For firmware, what matters more than the label is **code density (flash cost)**, **energy per operation** and **toolchain/ecosystem support**.
+
+---
+
+## 4. Memory Organization
+
+### 4.1 Memory types in an MCU
+
+| Memory | Volatile? | Holds | Notes |
+|---|---|---|---|
+| Flash | No | Code (`.text`), constants (`.rodata`), initial values of `.data` | Slower than RAM, limited erase cycles, wait states at high clock |
+| SRAM | Yes | Variables, stack, heap | Fast, small, power-hungry compared to flash at rest |
+| Peripheral registers | n/a | Control/status of hardware | Not memory: reads and writes have side effects |
+| EEPROM / external | No | Configuration, logs | Not present on every MCU |
+
+### 4.2 Program sections
+
+| Section | Contents | Lives in (at rest) | Runtime location |
+|---|---|---|---|
+| `.text` | Machine code | Flash | Flash |
+| `.rodata` | `const` data, strings | Flash | Flash |
+| `.data` | Initialised globals | Flash (initial values) | **Copied to RAM** at startup |
+| `.bss` | Zero-initialised globals | Not stored | **Zeroed in RAM** at startup |
+| Heap | Dynamic allocation | n/a | RAM, grows upward |
+| Stack | Call frames, locals | n/a | RAM, grows **downward** on Cortex-M |
+
+The startup code (run before `main()`) copies `.data` from flash to RAM and clears `.bss`. This is why an initialised global costs both flash *and* RAM.
+
+### 4.3 Boot on a Cortex-M
+
+At reset the core reads the **vector table**:
+
+1. Word 0: initial **stack pointer** value.
+2. Word 1: address of the **Reset handler**, where execution begins.
+
+---
+
+## 5. Registers
+
+"Register" means two different things. Keep them separate.
+
+### 5.1 CPU core registers (Cortex-M)
+
+| Register | Role |
+|---|---|
+| R0–R12 | General purpose (R0–R7 reachable by all Thumb instructions) |
+| R13 (SP) | Stack pointer (MSP main / PSP process) |
+| R14 (LR) | Link register: return address |
+| R15 (PC) | Program counter |
+| xPSR | Status flags and execution state |
+
+### 5.2 Peripheral registers
+
+These are **memory-mapped hardware registers** that control peripherals (e.g. GPIO mode, UART data). They live at fixed addresses in the memory map and are accessed like variables.
+
+---
+
+## 6. Memory Mapping
+
+### 6.1 The mechanism
+
+The CPU issues an **address** on the bus. **Address decoding** logic routes the access to flash, SRAM or a peripheral. One address space, many targets: an ordinary load or store to the right address *is* the hardware operation.
+
+### 6.2 STM32F411 memory map (simplified)
+
+| Region | Base address | Notes |
+|---|---|---|
+| Flash | `0x0800 0000` | 512 KB on F411RE |
+| SRAM | `0x2000 0000` | 128 KB |
+| Peripherals | `0x4000 0000` | APB1, APB2, AHB1... |
+| GPIOA | `0x4002 0000` | On the AHB1 bus |
+| RCC (clocks) | `0x4002 3800` | Enables peripheral clocks |
+| Core peripherals (NVIC, SysTick) | `0xE000 0000` | Private to the Cortex-M core |
+
+> Flash is also aliased at `0x0000 0000` at boot, so the vector table is found at address 0. Always confirm exact addresses in the reference manual (**RM0383**).
+
+### 6.3 Accessing a register from C
+
+Toggle the on-board LED (PA5 on NUCLEO-F411RE) without a vendor library:
+
+```c
+#include <stdint.h>
+
+#define RCC_AHB1ENR  (*(volatile uint32_t *)0x40023830U)
+#define GPIOA_MODER  (*(volatile uint32_t *)0x40020000U)
+#define GPIOA_BSRR   (*(volatile uint32_t *)0x40020018U)
+
+void led_init(void)
+{
+    RCC_AHB1ENR |= (1U << 0);            /* enable GPIOA clock        */
+    GPIOA_MODER &= ~(3U << (5U * 2U));   /* clear mode bits for PA5   */
+    GPIOA_MODER |=  (1U << (5U * 2U));   /* PA5 = general output      */
+}
+
+void led_on(void)  { GPIOA_BSRR = (1U << 5U);        }  /* set PA5   */
+void led_off(void) { GPIOA_BSRR = (1U << (5U + 16U)); } /* reset PA5 */
+```
+
+Why each part matters:
+
+- **`volatile`**: tells the compiler the value can change outside program flow and that accesses must not be removed or reordered away.
+- **Clock first**: on STM32, a peripheral whose clock is disabled ignores writes.
+- **`BSRR`**: sets or resets pins atomically, avoiding a read-modify-write race with interrupts.
+- **Read-modify-write on `MODER`**: clear the 2-bit field, then set it, so neighboring pins are not disturbed.
+
+---
+
+## Lab: Inspect Your Own Memory Layout
+
+Build the LED example (or any blink project) and then:
+
+1. Run `arm-none-eabi-size` on the ELF file. Record `text`, `data` and `bss`.
+2. Run `arm-none-eabi-objdump -h` and note each section's **VMA** (runtime address) and **LMA** (load address). Explain why `.data` has different values for each.
+3. Open the linker script and find the `MEMORY` block. Match the flash and RAM origins and lengths to the table in 6.2.
+4. Add a `const` array and a non-`const` array of the same size. Re-run `size` and explain which section grew in each case.
+
+---
+
+## Summary
+
+- MCUs integrate CPU, memory and peripherals on one die. MPUs rely on external memory and run full operating systems.
+- Von Neumann and Harvard are the ends of a spectrum. Cortex-M is modified Harvard: separate buses, one address space.
+- CISC vs. RISC is mostly about instruction complexity and load/store design. For firmware, code density and energy per operation matter more than the label.
+- Flash holds code and initial data. SRAM holds runtime data and the stack. Peripheral registers are accessed through the same address space.
+- Memory mapping means a load or store to the right address *is* a hardware operation, so always use `volatile` and enable the peripheral clock first.
+
+## Check Your Understanding
+
+**Q1.** What best describes the structural difference between an MCU and an MPU?
+
+- A. An MCU has a faster clock
+- B. An MCU integrates memory and peripherals on one die, while an MPU depends on external memory and peripherals
+- C. An MPU cannot run an operating system
+- D. An MCU always uses a Harvard architecture
+
+**Q2.** Why is a Cortex-M4 described as *modified* Harvard?
+
+- A. It has separate address spaces for code and data
+- B. It cannot execute code from RAM
+- C. It has separate internal buses but presents one unified address space
+- D. It has no instruction cache
+
+**Q3.** What is the purpose of the startup code that runs before `main()`?
+
+- A. To copy `.data` from flash to RAM and zero `.bss`
+- B. To copy `.text` into RAM
+- C. To erase flash
+- D. To enable the watchdog
+
+**Q4.** Why must a memory-mapped hardware register be declared `volatile`?
+
+- A. To place it in flash
+- B. To make accesses faster
+- C. To reduce stack usage
+- D. To stop the compiler optimising away or reordering accesses whose value changes outside program flow
+
+### Answer Key
+
+1. **B**: integration of memory and peripherals is the defining structural difference.
+2. **C**: separate buses internally, one unified address space for the programmer.
+3. **A**: initialised globals need their values copied to RAM, and `.bss` must start at zero.
+4. **D**: hardware can change the value or react to the access, so the compiler must not assume otherwise.
