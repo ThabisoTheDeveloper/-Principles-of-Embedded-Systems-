@@ -1,0 +1,321 @@
+# Principles of Embedded Systems: Final Assessment
+
+**Duration:** 90 minutes · **Total:** 100 marks · **Pass mark:** 60%
+
+**Allowed:** calculator and the reference sheet at the end. No internet or notes.
+
+| Section | Format | Marks |
+|---|---|---|
+| A | 12 multiple-choice questions (2 marks each) | 24 |
+| B | 5 short-answer questions (6 marks each) | 30 |
+| C | Design scenario | 22 |
+| D | Trace and translate | 24 |
+
+## Coverage
+
+| Course Learning Objective | Assessed in |
+|---|---|
+| 1. Differentiate general-purpose and embedded systems | A1–A2, B1, C |
+| 2. Compare MPU/MCU and Harvard/Von Neumann | A3–A4, B2, C |
+| 3. Map memory spaces and registers | A5–A6, B3, D |
+| 4. Deconstruct the software stack | A7–A8, B4, C |
+| 5. Trace the compilation pipeline | A9–A10, B5, C |
+| 6. Translate Blinky across representations | A11–A12, D |
+
+---
+
+## Section A: Multiple Choice (24 marks)
+
+Choose **one** answer per question.
+
+**A1.** Which statement best describes the design goal of an embedded system, compared with a general-purpose computer?
+
+- A. Maximize peak performance for any workload
+- B. Best fit to its constraints for one known task
+- C. Support the largest number of installed applications
+- D. Provide the most memory possible
+
+**A2.** A design change saves $0.05 per unit. At 2,000,000 units, what is the total saving?
+
+- A. $10,000
+- B. $50,000
+- C. $100,000
+- D. $1,000,000
+
+**A3.** Which is characteristic of an MPU-based design, compared with an MCU?
+
+- A. All code runs from on-chip flash
+- B. External DRAM and an operating system using an MMU
+- C. Typical sleep currents in the microamp range
+- D. No operating system is ever used
+
+**A4.** Which statement describes a Von Neumann architecture?
+
+- A. Code and data use separate memories and buses
+- B. Code and data share one memory and bus, so instruction fetch and data access cannot happen at the same time on it
+- C. Only RISC processors use it
+- D. It requires special instructions to read constants from flash
+
+**A5.** A program writes a value to address `0x40020018` and an LED lights. This works because:
+
+- A. The address decodes to a peripheral register in the same address space as memory
+- B. The address is in flash
+- C. The compiler converts the write into a special I/O instruction
+- D. The linker moves the value into RAM
+
+**A6.** At rest, where are the initial values of initialised global variables stored, and where do those variables live at run time?
+
+- A. RAM, then flash
+- B. Flash, then RAM
+- C. Flash, then flash
+- D. RAM, then RAM
+
+**A7.** A sensor driver directly calls a function in the application layer. What is wrong with this?
+
+- A. Nothing, it is the preferred way to report data
+- B. It breaks the rule that dependencies point downward
+- C. Drivers must be written in assembly
+- D. It prevents the use of a HAL
+
+**A8.** Which of the following is most likely to be a *middleware* component?
+
+- A. A GPIO register definition
+- B. The linker script
+- C. A TCP/IP stack
+- D. The reset vector
+
+**A9.** What is the primary purpose of a linker script?
+
+- A. To translate C into assembly
+- B. To describe memory regions and place sections at specific addresses
+- C. To remove comments from the source
+- D. To program the flash
+
+**A10.** Why can a `.o` file not be run directly on the target?
+
+- A. It contains only comments
+- B. It is encrypted
+- C. Its addresses and external symbols are not yet resolved
+- D. It is always larger than the MCU's flash
+
+**A11.** The Thumb instruction `movs r1, #0x20` has the encoding `0x2120`. What does it do?
+
+- A. Stores 0x20 to the address in r1
+- B. Loads the constant 0x20 into r1
+- C. Branches 0x20 bytes ahead
+- D. Subtracts 0x20 from r1
+
+**A12.** In the LED-on sequence, which element stores the pin's output state?
+
+- A. The address decoder
+- B. The program counter
+- C. The flip-flop for that pin's output-data bit
+- D. The linker
+
+---
+
+## Section B: Short Answer (30 marks)
+
+Answer in 4–6 sentences each. Use correct terms.
+
+**B1.** (6) Explain why a general-purpose computer and an embedded system are judged by different criteria. Name **two** constraints and the design decision each one forces.
+
+**B2.** (6) Explain what *modified Harvard* means, using the Cortex-M4 as the example. Why does this matter to a programmer, compared with an AVR?
+
+**B3.** (6) Describe what the startup code does with `.data` and `.bss` before `main()` runs. Explain why an initialised global variable costs both flash and RAM.
+
+**B4.** (6) Define "firmware" in both its broad and narrow senses. Describe how a driver can notify the application of an event without breaking layering rules.
+
+**B5.** (6) Distinguish the roles of the **linker** and the **locator**. Explain the difference between a section's load address (LMA) and run address (VMA), with an example.
+
+---
+
+## Section C: Design Scenario (22 marks)
+
+A company will build **100,000 soil-moisture sensors**. Each unit:
+
+- Wakes every 15 minutes, reads an ADC, and transmits 20 bytes over a low-power radio
+- Must last **3 years** on a **1,000 mAh** battery
+- Operates outdoors from −10 °C to 60 °C with no maintenance
+- Has a target of **$1.50** or less for the MCU
+
+**(a)** (6) Choose between an MCU-based and an MPU-based design. Justify your choice against **all four** constraints: power, size, cost and reliability.
+
+**(b)** (6) Assume you must derate the battery by 20%. Calculate the **maximum average current** the device may draw. Show your working and state your answer in µA.
+
+**(c)** (5) Propose a software stack for this product. Name one component for each layer (drivers, middleware, application) and state where a HAL fits and one trade-off of using it here.
+
+**(d)** (5) Name **two** reliability measures you would include in the firmware and **one** toolchain setting that would reduce flash use. Explain each briefly.
+
+---
+
+## Section D: Trace and Translate (24 marks)
+
+A programmer writes this Thumb assembly to turn the LED on PA5 **off**:
+
+```asm
+    ldr  r0, =0x40020018    @ GPIOA_BSRR
+    ldr  r1, =0x00200000
+    str  r1, [r0]
+    b    .
+```
+
+**D1.** (4) Which pin does this affect, and what happens to it? Explain how you worked this out from `0x00200000`.
+
+**D2.** (4) The 16-bit instruction `movs r1, #imm` could not be used to load `0x00200000`. Explain why, and name **one** alternative the assembler can use.
+
+**D3.** (6) The following bytes appear in memory, in this order: `20 21 01 60`. Using the reference sheet:
+
+- Convert them to 16-bit halfwords (state the byte order rule you used).
+- Decode each halfword into an assembly instruction.
+
+**D4.** (10) Describe, in order, what happens inside the MCU when `str r1, [r0]` executes and writes to `GPIOA_BSRR`. Include at least: fetch, decode, bus routing, peripheral register decoding, the effect on the pin's output stage, and the role of the clock-enable bit.
+
+---
+
+## Reference Sheet
+
+**STM32F411 memory map (simplified)**
+
+| Region | Base address |
+|---|---|
+| Flash | `0x0800 0000` |
+| SRAM | `0x2000 0000` |
+| Peripherals | `0x4000 0000` |
+| GPIOA | `0x4002 0000` |
+| RCC | `0x4002 3800` |
+
+**GPIOA registers:** `MODER` offset `0x00`, `ODR` offset `0x14`, `BSRR` offset `0x18`.
+
+**BSRR:** writing `1` to bit *n* (0–15) **sets** pin *n*. Writing `1` to bit *n*+16 **resets** pin *n*.
+
+**Thumb encodings (16-bit)**
+
+| Instruction | Encoding |
+|---|---|
+| `MOVS Rd, #imm8` | `0x2000 \| (Rd << 8) \| imm8` |
+| `STR Rt, [Rn]` | `0x6000 \| (Rn << 3) \| Rt` |
+| `B .` (branch to self) | `0xE7FE` |
+
+**Useful formulae**
+
+- Battery life (hours) = capacity (mAh) ÷ average current (mA)
+- 1 year = 8,760 hours
+
+
+
+
+
+
+
+# Final Assessment: Instructor Marking Guide
+
+> **Do not publish.** Keep separate from the student paper.
+
+## Section A: Answer Key (2 marks each)
+
+| Q | Ans | Reason |
+|---|---|---|
+| A1 | B | Embedded design is about fit to constraints for a known task |
+| A2 | C | 0.05 × 2,000,000 = $100,000 |
+| A3 | B | MPUs use external DRAM and run full OS with MMU |
+| A4 | B | One bus for code and data creates the bottleneck |
+| A5 | A | Memory-mapped I/O: peripherals live in the same address space |
+| A6 | B | Initial values stored in flash and copied to RAM at startup |
+| A7 | B | Dependencies must point downward |
+| A8 | C | TCP/IP, RTOS, filesystems and USB stacks are middleware |
+| A9 | B | The linker script defines memory and places sections |
+| A10 | C | Relocatable: addresses and symbols still unresolved |
+| A11 | B | `movs` writes an immediate into a register |
+| A12 | C | The output-data flip-flop holds the pin state |
+
+## Section B: Model Answers (6 marks each)
+
+Award marks as shown. Accept any correct equivalent.
+
+**B1**
+- (2) General-purpose is judged mainly on performance/flexibility. Embedded is judged on fit to constraints for one task.
+- (2) First constraint with a correct consequence (e.g. power: sleep modes, low duty cycle, lower clock).
+- (2) Second constraint with a correct consequence (e.g. cost: cheapest part that meets requirement, volume economics).
+
+**B2**
+- (2) Separate internal buses (instruction, data, system) so fetch and data access can overlap.
+- (2) One unified address space presented to the programmer.
+- (2) On Cortex-M a pointer can reach flash or RAM with the same instructions. On AVR code and data have separate address spaces, so constants in flash need special access (e.g. `PROGMEM`).
+
+**B3**
+- (2) `.data` is copied from its load address in flash to its run address in RAM.
+- (2) `.bss` is zeroed in RAM.
+- (2) The initial values must be stored in flash and the variable occupies RAM, so it costs both.
+
+**B4**
+- (2) Broad: everything stored in non-volatile memory.
+- (2) Narrow: low-level code tied to hardware (bootloader, drivers, BSP).
+- (2) A callback registered by the application, or an event posted to a queue, so the driver does not depend on application code.
+
+**B5**
+- (2) Linker: combines object files and resolves symbols.
+- (2) Locator: assigns absolute addresses to sections (in GNU, driven by the linker script).
+- (2) LMA = where a section is stored in the image. VMA = where it runs. `.data`: LMA in flash, VMA in RAM.
+
+## Section C: Model Answers (22 marks)
+
+**(a)** (6): MCU-based design.
+- Power (1.5): on-chip memory and low-power modes enable µA sleep. An MPU with DRAM cannot.
+- Size (1.5): single-chip integration keeps the board small.
+- Cost (1.5): the target is $1.50 or less, which fits an MCU. An MPU plus DRAM and storage does not.
+- Reliability (1.5): fewer components, and deterministic bare-metal or RTOS behavior suits unattended operation.
+
+**(b)** (6): Maximum average current.
+- (1) Derated capacity = 1,000 × 0.8 = **800 mAh**
+- (1) Time = 3 × 8,760 = **26,280 h**
+- (2) Current = 800 ÷ 26,280 ≈ **0.0304 mA**
+- (1) Converted: **≈ 30 µA**
+- (1) Correct units and a sensible statement of the result.
+
+Award follow-through marks for correct method with an arithmetic slip.
+
+**(c)** (5)
+- (3) One valid component per layer, e.g. drivers: ADC/UART/SPI via HAL; middleware: FreeRTOS or a lightweight radio stack; application: sampling and transmit logic.
+- (1) HAL sits inside the driver layer, between hardware and upper layers.
+- (1) A valid trade-off, e.g. extra flash/RAM and cycles, which matters with a tight power and cost budget.
+
+**(d)** (5)
+- (2) First reliability measure with explanation (watchdog, brown-out reset, CRC on stored data).
+- (2) Second reliability measure with explanation.
+- (1) Toolchain setting (`-Os`, `--gc-sections` with function/data sections, `nano.specs`) with correct effect.
+
+## Section D: Model Answers (24 marks)
+
+**D1** (4)
+- (1) Pin PA5.
+- (1) It is driven **low** (reset).
+- (2) `0x00200000` is bit 21. Bits 16–31 of BSRR reset pins, so bit 21 resets pin 21 − 16 = 5.
+
+**D2** (4)
+- (2) The 16-bit `movs` encodes only an 8-bit immediate (0–255).
+- (2) Alternative: PC-relative literal-pool load (`ldr r1, =...`), or a 32-bit Thumb-2 move.
+
+**D3** (6)
+- (2) Little-endian: low byte first, so `20 21` becomes `0x2120` and `01 60` becomes `0x6001`.
+- (2) `0x2120` = `movs r1, #0x20`.
+- (2) `0x6001` = `str r1, [r0]`.
+
+**D4** (10): about 1.5 marks per correct step, 10 maximum.
+1. Fetch: PC places the address on the instruction bus, flash returns `0x6001`, PC advances.
+2. Decode: control logic recognizes *store* and selects R0 (address) and R1 (data).
+3. Execute: the address (`0x40020018`) and data are sent to the load/store unit.
+4. Bus routing: the bus matrix routes the write by address range to the bus holding GPIOA.
+5. Peripheral decode: GPIOA compares the upper address bits to its base, and the low bits select `BSRR`.
+6. Register action: the write to the correct BSRR bit sets or resets the pin's output-data flip-flop.
+7. Output stage: the flip-flop output drives the PMOS/NMOS push-pull pair, enabled because `MODER` selects output.
+8. Clock enable: the RCC enable bit gates the clock to GPIOA. Without it, the writes are ignored.
+
+## Grade Bands (suggested)
+
+| Score | Outcome |
+|---|---|
+| 85–100 | Distinction |
+| 70–84 | Merit |
+| 60–69 | Pass |
+| Below 60 | Not yet competent. Review the modules mapped in the Coverage table |
